@@ -39,7 +39,7 @@ const completeConfigYaml = `
 port: 9000
 auth_token: "secret-token"
 system_prompt: "You are a pirate."
-aqueduct:
+provider:
   base_url: https://aqueduct.example.com
   api_key: "aqueduct-key"
   model: qwen-3.6-35b
@@ -49,7 +49,7 @@ const expectedCompleteConfig: Config = {
   port: 9000,
   authToken: "secret-token",
   systemPrompt: "You are a pirate.",
-  aqueduct: {
+  provider: {
     baseUrl: "https://aqueduct.example.com",
     apiKey: "aqueduct-key",
     model: "qwen-3.6-35b",
@@ -58,7 +58,7 @@ const expectedCompleteConfig: Config = {
 
 const configYamlWithoutPortOrPrompt = `
 auth_token: "secret-token"
-aqueduct:
+provider:
   base_url: https://aqueduct.example.com
   api_key: "aqueduct-key"
   model: qwen-3.6-35b
@@ -66,7 +66,7 @@ aqueduct:
 
 const configYamlWithEmptyAuthToken = `
 auth_token: ""
-aqueduct:
+provider:
   base_url: https://aqueduct.example.com
   api_key: "aqueduct-key"
   model: qwen-3.6-35b
@@ -76,35 +76,35 @@ const missingRequiredKeyCases = [
   {
     dottedKey: "auth_token",
     yamlText: `
-aqueduct:
+provider:
   base_url: https://aqueduct.example.com
   api_key: "aqueduct-key"
   model: qwen-3.6-35b
 `,
   },
   {
-    dottedKey: "aqueduct.base_url",
+    dottedKey: "provider.base_url",
     yamlText: `
 auth_token: "secret-token"
-aqueduct:
+provider:
   api_key: "aqueduct-key"
   model: qwen-3.6-35b
 `,
   },
   {
-    dottedKey: "aqueduct.api_key",
+    dottedKey: "provider.api_key",
     yamlText: `
 auth_token: "secret-token"
-aqueduct:
+provider:
   base_url: https://aqueduct.example.com
   model: qwen-3.6-35b
 `,
   },
   {
-    dottedKey: "aqueduct.model",
+    dottedKey: "provider.model",
     yamlText: `
 auth_token: "secret-token"
-aqueduct:
+provider:
   base_url: https://aqueduct.example.com
   api_key: "aqueduct-key"
 `,

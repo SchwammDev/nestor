@@ -31,7 +31,7 @@ Agents are keyed by channel id: reconnecting re-attaches to the existing agent a
 port: 8790                  # default 8790
 auth_token: "<long random>" # required; what clients present in hello
 system_prompt: "..."        # optional
-aqueduct:
+provider:                   # any OpenAI-compatible gateway; wiring is tuned for Qwen-on-vLLM (Aqueduct)
   base_url: https://aqueduct.example.com  # required
   api_key: "<key>"                        # required
   model: qwen-3.6-35b                     # required

@@ -4,7 +4,7 @@ import type { Config } from "./config.ts";
 import type { AgentProvision } from "./registry.ts";
 
 export function buildAqueductProvider(config: Config): AgentProvision {
-  const { baseUrl, apiKey, model: modelId } = config.aqueduct;
+  const { baseUrl, apiKey, model: modelId } = config.provider;
 
   const model: Model<"openai-completions"> = {
     id: modelId,

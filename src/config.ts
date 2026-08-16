@@ -5,10 +5,10 @@ export interface Config {
   port: number
   authToken: string
   systemPrompt: string
-  aqueduct: { baseUrl: string; apiKey: string; model: string }
+  provider: { baseUrl: string; apiKey: string; model: string }
 }
 
-interface RawAqueductConfig {
+interface RawProviderConfig {
   base_url?: string
   api_key?: string
   model?: string
@@ -18,7 +18,7 @@ interface RawConfig {
   port?: number
   auth_token?: string
   system_prompt?: string
-  aqueduct?: RawAqueductConfig
+  provider?: RawProviderConfig
 }
 
 const DEFAULT_CONFIG_PATH = '/etc/nestor/config.yaml'
@@ -33,10 +33,10 @@ export function loadConfig(path?: string): Config {
     port: raw.port ?? DEFAULT_PORT,
     authToken: requireString(raw.auth_token, 'auth_token', configPath),
     systemPrompt: raw.system_prompt ?? DEFAULT_SYSTEM_PROMPT,
-    aqueduct: {
-      baseUrl: requireString(raw.aqueduct?.base_url, 'aqueduct.base_url', configPath),
-      apiKey: requireString(raw.aqueduct?.api_key, 'aqueduct.api_key', configPath),
-      model: requireString(raw.aqueduct?.model, 'aqueduct.model', configPath),
+    provider: {
+      baseUrl: requireString(raw.provider?.base_url, 'provider.base_url', configPath),
+      apiKey: requireString(raw.provider?.api_key, 'provider.api_key', configPath),
+      model: requireString(raw.provider?.model, 'provider.model', configPath),
     },
   }
 }
