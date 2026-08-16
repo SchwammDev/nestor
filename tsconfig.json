@@ -5,6 +5,7 @@
     "moduleResolution": "NodeNext",
     "target": "ES2022",
     "noEmit": true,
+    "types": ["node"],
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
