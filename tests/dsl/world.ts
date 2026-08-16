@@ -104,3 +104,27 @@ export async function collectUntilDone(client: TestClient): Promise<StreamedRepl
     deltaTexts.push(frame.text ?? "");
   }
 }
+
+export interface StreamedReplyWithErrors extends StreamedReply {
+  errorFrames: unknown[];
+}
+
+export async function collectUntilDoneCapturingErrors(
+  client: TestClient,
+  onFrame?: (frame: unknown) => void,
+): Promise<StreamedReplyWithErrors> {
+  const deltaTexts: string[] = [];
+  const errorFrames: unknown[] = [];
+
+  while (true) {
+    const message = await client.nextMessage();
+    onFrame?.(message);
+    const frame = message as { type: string; text?: string };
+    if (frame.type === "done") return { deltaTexts, doneFrame: message, errorFrames };
+    if (frame.type === "error") {
+      errorFrames.push(message);
+      continue;
+    }
+    deltaTexts.push(frame.text ?? "");
+  }
+}

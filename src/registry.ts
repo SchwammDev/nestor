@@ -10,9 +10,12 @@ export interface AgentProvision {
 
 export type DeltaSink = (text: string) => void;
 
+export class ProviderError extends Error {}
+
 export interface ChannelAgent {
   setSink(sink: DeltaSink): void;
   clearSink(): void;
+  isBusy(): boolean;
   run(text: string): Promise<void>;
 }
 
@@ -44,6 +47,7 @@ function createChannelAgent(provision: AgentProvision): ChannelAgent {
   });
 
   let sink: DeltaSink = NO_SINK;
+  let busy = false;
 
   agent.subscribe((event) => {
     if (event.type !== "message_update") return;
@@ -58,8 +62,19 @@ function createChannelAgent(provision: AgentProvision): ChannelAgent {
     clearSink(): void {
       sink = NO_SINK;
     },
+    isBusy(): boolean {
+      return busy;
+    },
     async run(text: string): Promise<void> {
-      await agent.prompt(text);
+      busy = true;
+      try {
+        await agent.prompt(text);
+        if (agent.state.errorMessage) {
+          throw new ProviderError(agent.state.errorMessage);
+        }
+      } finally {
+        busy = false;
+      }
     },
   };
 }

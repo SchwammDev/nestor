@@ -31,12 +31,26 @@ const EMPTY_USAGE = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
+export interface ScriptedFailure {
+  failureMessage: string;
+}
+
+export type ScriptedReply = string | ScriptedFailure;
+
+export function failWith(failureMessage: string): ScriptedFailure {
+  return { failureMessage };
+}
+
+function isScriptedFailure(reply: ScriptedReply): reply is ScriptedFailure {
+  return typeof reply !== "string";
+}
+
 export interface FakeStream {
   streamFn: StreamFn;
   recordedContexts: Context[];
 }
 
-export function createFakeStreamFn(replies: Record<string, string>): FakeStream {
+export function createFakeStreamFn(replies: Record<string, ScriptedReply>): FakeStream {
   const recordedContexts: Context[] = [];
 
   const streamFn: StreamFn = (model, context) => {
@@ -49,7 +63,7 @@ export function createFakeStreamFn(replies: Record<string, string>): FakeStream 
   return { streamFn, recordedContexts };
 }
 
-function replyFor(context: Context, replies: Record<string, string>): string {
+function replyFor(context: Context, replies: Record<string, ScriptedReply>): ScriptedReply {
   const promptText = lastUserMessageText(context);
   return replies[promptText] ?? "";
 }
@@ -84,12 +98,19 @@ function baseMessage(model: Model<Api>): AssistantMessage {
 async function emitScriptedReplyWithYields(
   stream: AssistantMessageEventStream,
   model: Model<Api>,
-  reply: string,
+  reply: ScriptedReply,
 ): Promise<void> {
   await setImmediate();
 
   const start = baseMessage(model);
   stream.push({ type: "start", partial: start });
+
+  if (isScriptedFailure(reply)) {
+    await setImmediate();
+    const failed: AssistantMessage = { ...start, stopReason: "error", errorMessage: reply.failureMessage };
+    stream.push({ type: "error", reason: "error", error: failed });
+    return;
+  }
 
   await setImmediate();
 

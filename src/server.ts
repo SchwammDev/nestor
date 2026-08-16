@@ -1,6 +1,6 @@
 import { createServer, type Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket, type RawData } from "ws";
-import { createAgentRegistry, type AgentProvision, type AgentRegistry } from "./registry.ts";
+import { createAgentRegistry, type AgentProvision, type AgentRegistry, type ChannelAgent } from "./registry.ts";
 
 export interface CoreServerOptions {
   port: number;
@@ -16,6 +16,7 @@ export interface CoreServer {
 
 const DEFAULT_AUTH_TIMEOUT_MS = 10_000;
 const AUTH_FAILED_CLOSE_CODE = 4401;
+const SUPERSEDED_CLOSE_CODE = 4000;
 
 type HelloFrame = { type: "hello"; token: string; channel: string };
 type PromptFrame = { type: "prompt"; text: string };
@@ -66,6 +67,7 @@ function handleFirstFrame(
   const hello = parseHelloFrame(data);
 
   if (hello && hello.token === authToken && hello.channel.length > 0) {
+    supersedeExistingOwner(hello.channel, channelOwners);
     socket.send(JSON.stringify({ type: "ready" }));
     attachChannel(socket, registry.getOrCreate(hello.channel), hello.channel, channelOwners);
     return;
@@ -74,9 +76,14 @@ function handleFirstFrame(
   rejectAuth(socket, hello === undefined ? "malformed first frame" : "invalid token or channel");
 }
 
+function supersedeExistingOwner(channelId: string, channelOwners: Map<string, WebSocket>): void {
+  const existingOwner = channelOwners.get(channelId);
+  if (existingOwner) existingOwner.close(SUPERSEDED_CLOSE_CODE, "superseded");
+}
+
 function attachChannel(
   socket: WebSocket,
-  channelAgent: ReturnType<AgentRegistry["getOrCreate"]>,
+  channelAgent: ChannelAgent,
   channelId: string,
   channelOwners: Map<string, WebSocket>,
 ): void {
@@ -84,9 +91,18 @@ function attachChannel(
   channelAgent.setSink((text) => socket.send(JSON.stringify({ type: "delta", text })));
 
   socket.on("message", (data) => {
-    const prompt = parsePromptFrame(data);
-    if (!prompt) return;
-    void channelAgent.run(prompt.text).then(() => socket.send(JSON.stringify({ type: "done" })));
+    const frame = parseJson(data);
+    if (frame === undefined) {
+      sendError(socket, "invalid_json", "message was not valid JSON");
+      return;
+    }
+
+    if (isPromptFrame(frame)) {
+      handlePromptFrame(socket, channelAgent, frame.text);
+      return;
+    }
+
+    sendError(socket, "unknown_type", `unrecognized frame type: ${frameTypeOf(frame)}`);
   });
 
   socket.on("close", () => {
@@ -96,16 +112,28 @@ function attachChannel(
   });
 }
 
-function parsePromptFrame(data: RawData): PromptFrame | undefined {
-  let frame: unknown;
+function handlePromptFrame(socket: WebSocket, channelAgent: ChannelAgent, text: string): void {
+  if (channelAgent.isBusy()) {
+    sendError(socket, "busy", "a turn is already running on this channel");
+    return;
+  }
+
+  void channelAgent
+    .run(text)
+    .then(() => socket.send(JSON.stringify({ type: "done" })))
+    .catch((error: unknown) => sendError(socket, "provider_error", errorMessageOf(error)));
+}
+
+function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseJson(data: RawData): unknown {
   try {
-    frame = JSON.parse(data.toString());
+    return JSON.parse(data.toString());
   } catch {
     return undefined;
   }
-
-  if (!isPromptFrame(frame)) return undefined;
-  return frame;
 }
 
 function isPromptFrame(frame: unknown): frame is PromptFrame {
@@ -114,14 +142,14 @@ function isPromptFrame(frame: unknown): frame is PromptFrame {
   return candidate.type === "prompt" && typeof candidate.text === "string";
 }
 
-function parseHelloFrame(data: RawData): HelloFrame | undefined {
-  let frame: unknown;
-  try {
-    frame = JSON.parse(data.toString());
-  } catch {
-    return undefined;
-  }
+function frameTypeOf(frame: unknown): string {
+  if (typeof frame !== "object" || frame === null) return "unknown";
+  const candidate = frame as Record<string, unknown>;
+  return typeof candidate.type === "string" ? candidate.type : "unknown";
+}
 
+function parseHelloFrame(data: RawData): HelloFrame | undefined {
+  const frame = parseJson(data);
   if (!isHelloFrame(frame)) return undefined;
   return frame;
 }
@@ -137,8 +165,12 @@ function isHelloFrame(frame: unknown): frame is HelloFrame {
 }
 
 function rejectAuth(socket: WebSocket, message: string): void {
-  socket.send(JSON.stringify({ type: "error", code: "auth_failed", message }));
+  sendError(socket, "auth_failed", message);
   socket.close(AUTH_FAILED_CLOSE_CODE);
+}
+
+function sendError(socket: WebSocket, code: string, message: string): void {
+  socket.send(JSON.stringify({ type: "error", code, message }));
 }
 
 function resolvePort(httpServer: HttpServer): number {
