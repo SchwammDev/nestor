@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.git
+playground
+tests
+docs
+*.md
+config.yaml

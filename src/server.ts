@@ -1,4 +1,4 @@
-import { createServer, type Server as HttpServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { createAgentRegistry, type AgentProvision, type AgentRegistry, type ChannelAgent } from "./registry.ts";
 
@@ -23,7 +23,7 @@ type PromptFrame = { type: "prompt"; text: string };
 
 export function startCoreServer(options: CoreServerOptions): Promise<CoreServer> {
   const authTimeoutMs = options.authTimeoutMs ?? DEFAULT_AUTH_TIMEOUT_MS;
-  const httpServer = createServer();
+  const httpServer = createServer(handleHttpRequest);
   const wss = new WebSocketServer({ server: httpServer });
   const registry = createAgentRegistry(options.agent);
   const channelOwners = new Map<string, WebSocket>();
@@ -40,6 +40,15 @@ export function startCoreServer(options: CoreServerOptions): Promise<CoreServer>
       });
     });
   });
+}
+
+function handleHttpRequest(request: IncomingMessage, response: ServerResponse): void {
+  if (request.method === "GET" && request.url === "/healthz") {
+    response.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
+    return;
+  }
+
+  response.writeHead(404).end();
 }
 
 function authenticateConnection(

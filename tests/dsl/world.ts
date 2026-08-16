@@ -6,6 +6,7 @@ export const TEST_AUTH_TOKEN = "test-token";
 
 export interface CoreHandle {
   url: string;
+  httpUrl: string;
   stop(): Promise<void>;
 }
 
@@ -27,6 +28,7 @@ export async function startCore(overrides: Partial<CoreServerOptions> = {}): Pro
 
   return {
     url: `ws://localhost:${server.port}`,
+    httpUrl: `http://localhost:${server.port}`,
     stop: () => server.close(),
   };
 }
