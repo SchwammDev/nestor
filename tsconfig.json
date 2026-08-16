@@ -6,6 +6,7 @@
     "target": "ES2022",
     "noEmit": true,
     "types": ["node"],
+    "rewriteRelativeImportExtensions": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
