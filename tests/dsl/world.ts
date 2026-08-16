@@ -1,5 +1,6 @@
 import { WebSocket } from "ws";
 import { startCoreServer, type CoreServer, type CoreServerOptions } from "../../src/server.ts";
+import { createFakeStreamFn, fakeModel } from "../fakes/stream-fn.ts";
 
 export const TEST_AUTH_TOKEN = "test-token";
 
@@ -8,10 +9,19 @@ export interface CoreHandle {
   stop(): Promise<void>;
 }
 
+function defaultAgentProvision(): CoreServerOptions["agent"] {
+  return {
+    model: fakeModel,
+    streamFn: createFakeStreamFn({}).streamFn,
+    systemPrompt: "You are a test assistant.",
+  };
+}
+
 export async function startCore(overrides: Partial<CoreServerOptions> = {}): Promise<CoreHandle> {
   const server: CoreServer = await startCoreServer({
     port: 0,
     authToken: TEST_AUTH_TOKEN,
+    agent: defaultAgentProvision(),
     ...overrides,
   });
 
@@ -77,4 +87,20 @@ export function connect(url: string): TestClient {
       socket.close();
     },
   };
+}
+
+export interface StreamedReply {
+  deltaTexts: string[];
+  doneFrame: unknown;
+}
+
+export async function collectUntilDone(client: TestClient): Promise<StreamedReply> {
+  const deltaTexts: string[] = [];
+
+  while (true) {
+    const message = await client.nextMessage();
+    const frame = message as { type: string; text?: string };
+    if (frame.type === "done") return { deltaTexts, doneFrame: message };
+    deltaTexts.push(frame.text ?? "");
+  }
 }
