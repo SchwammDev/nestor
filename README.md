@@ -52,9 +52,11 @@ Smoke client (throwaway; the Signal adapter is the first real client):
 NESTOR_TOKEN=<token> node scripts/smoke-client.mjs wss://host/path <channel> "prompt text"
 ```
 
-## Deploy (Docker, behind nginx)
+## Deploy (Docker, behind nginx-proxy)
 
-The daemon binds plain WS; the host's nginx terminates TLS and proxies the upgrade. Compose publishes on 127.0.0.1 only.
+The daemon binds plain WS and publishes no host port at all. It joins the reverse proxy's docker network, where [nginx-proxy](https://github.com/nginx-proxy/nginx-proxy) discovers it by `VIRTUAL_HOST` and terminates TLS; nothing else on the host can reach it.
+
+Give it a hostname of its own. Containers sharing a `VIRTUAL_HOST` are merged into one load-balanced upstream, so reusing a neighbour's hostname would silently route that neighbour's traffic here.
 
 The container runs as a dedicated unprivileged host user that owns the config and nothing else, with all capabilities dropped and a read-only root filesystem. Its numeric uid/gid come from `.env` (see `.env.example`) — the image's built-in `node` user is deliberately not relied upon, since a bind mount matches by number and uid 1000 is whatever the host happens to assign it.
 
@@ -63,28 +65,26 @@ The container runs as a dedicated unprivileged host user that owns the config an
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin nestor
 
 sudo install -d -m 755 /etc/nestor
-sudo install -m 600 -o nestor -g nestor config.yaml /etc/nestor/config.yaml   # see Config above
+sudo install -m 600 -o nestor -g nestor /dev/null /etc/nestor/config.yaml
+sudo -e /etc/nestor/config.yaml       # see Config above; created 600 before it holds a secret
 
-printf 'NESTOR_UID=%s\nNESTOR_GID=%s\n' "$(id -u nestor)" "$(id -g nestor)" > .env
+cp .env.example .env                  # fill in uid, gid, proxy network, virtual host
 
 sudo docker compose up -d --build
-wget -qO- http://127.0.0.1:8790/healthz                                       # → ok
+sudo docker compose exec nestor wget -qO- http://127.0.0.1:8790/healthz   # → ok
 ```
 
-nginx location (inside an existing TLS-terminated `server` block):
+nginx-proxy defaults `proxy_read_timeout` to 60 s, which drops an idle WebSocket. Raise it for this vhost only, in the proxy's mounted `vhost.d/<virtual-host>`:
 
 ```nginx
-location /nestor {
-    proxy_pass http://127.0.0.1:8790;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_read_timeout 600s;
-}
+proxy_read_timeout 600s;
+proxy_send_timeout 600s;
 ```
+
+Upgrade headers need no configuration — nginx-proxy's template already sets them.
 
 End-to-end check from any machine:
 
 ```sh
-NESTOR_TOKEN=<token> node scripts/smoke-client.mjs wss://<host>/nestor smoke "Say hi."
+NESTOR_TOKEN=<token> node scripts/smoke-client.mjs wss://<virtual-host>/ smoke "Say hi."
 ```

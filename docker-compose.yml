@@ -10,8 +10,12 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    ports:
-      - "127.0.0.1:8790:8790"
+    environment:
+      VIRTUAL_HOST: "${NESTOR_VIRTUAL_HOST}"
+      VIRTUAL_PORT: "8790"
+      LETSENCRYPT_HOST: "${NESTOR_VIRTUAL_HOST}"
+    networks:
+      - proxy
     volumes:
       - /etc/nestor/config.yaml:/etc/nestor/config.yaml:ro
     healthcheck:
@@ -19,3 +23,8 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+
+networks:
+  proxy:
+    name: "${NESTOR_PROXY_NETWORK}"
+    external: true
