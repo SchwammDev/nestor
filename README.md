@@ -74,12 +74,14 @@ sudo docker compose up -d --build
 sudo docker compose exec nestor wget -qO- http://127.0.0.1:8790/healthz   # → ok
 ```
 
-nginx-proxy defaults `proxy_read_timeout` to 60 s, which drops an idle WebSocket. Raise it for this vhost only, in the proxy's mounted `vhost.d/<virtual-host>`:
+nginx-proxy defaults `proxy_read_timeout` to 60 s, which drops an idle WebSocket. Raise it for this vhost alone by adding a file named exactly after the virtual host to the proxy's `vhost.d`:
 
-```nginx
-proxy_read_timeout 600s;
-proxy_send_timeout 600s;
+```sh
+sudo docker exec <proxy-container> sh -c \
+  'printf "proxy_read_timeout 600s;\nproxy_send_timeout 600s;\n" > /etc/nginx/vhost.d/<virtual-host>'
 ```
+
+Write it before starting the daemon: the proxy regenerates and reloads on the container-start event, picking the file up on the way.
 
 Upgrade headers need no configuration — nginx-proxy's template already sets them.
 
