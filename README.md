@@ -70,18 +70,14 @@ sudo -e /etc/nestor/config.yaml       # see Config above; created 600 before it 
 
 cp .env.example .env                  # fill in uid, gid, proxy network, virtual host
 
-sudo docker compose up -d --build
-sudo docker compose exec nestor wget -qO- http://127.0.0.1:8790/healthz   # → ok
-```
-
-nginx-proxy defaults `proxy_read_timeout` to 60 s, which drops an idle WebSocket. Raise it for this vhost alone by adding a file named exactly after the virtual host to the proxy's `vhost.d`:
-
-```sh
+# nginx-proxy defaults proxy_read_timeout to 60 s, which drops an idle
+# WebSocket; the file name must match VIRTUAL_HOST exactly
 sudo docker exec <proxy-container> sh -c \
   'printf "proxy_read_timeout 600s;\nproxy_send_timeout 600s;\n" > /etc/nginx/vhost.d/<virtual-host>'
-```
 
-Write it before starting the daemon: the proxy regenerates and reloads on the container-start event, picking the file up on the way.
+sudo docker compose up -d --build     # the start event reloads the proxy, picking that file up
+sudo docker compose exec nestor wget -qO- http://127.0.0.1:8790/healthz   # → ok
+```
 
 Upgrade headers need no configuration — nginx-proxy's template already sets them.
 
