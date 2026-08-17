@@ -2,10 +2,18 @@ services:
   nestor:
     build: .
     restart: unless-stopped
+    user: "${NESTOR_UID}:${NESTOR_GID}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "127.0.0.1:8790:8790"
     volumes:
-      - ./config.yaml:/etc/nestor/config.yaml:ro
+      - /etc/nestor/config.yaml:/etc/nestor/config.yaml:ro
     healthcheck:
       test: wget -qO- http://127.0.0.1:8790/healthz || exit 1
       interval: 30s

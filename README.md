@@ -56,11 +56,19 @@ NESTOR_TOKEN=<token> node scripts/smoke-client.mjs wss://host/path <channel> "pr
 
 The daemon binds plain WS; the host's nginx terminates TLS and proxies the upgrade. Compose publishes on 127.0.0.1 only.
 
+The container runs as a dedicated unprivileged host user that owns the config and nothing else, with all capabilities dropped and a read-only root filesystem. Its numeric uid/gid come from `.env` (see `.env.example`) — the image's built-in `node` user is deliberately not relied upon, since a bind mount matches by number and uid 1000 is whatever the host happens to assign it.
+
 ```sh
-# on the server
-install -m 600 config.yaml /path/to/checkout/config.yaml   # see Config above
-docker compose up -d --build
-wget -qO- http://127.0.0.1:8790/healthz                    # → ok
+# on the server, as a sudo-capable user — do not join the docker group
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin nestor
+
+sudo install -d -m 755 /etc/nestor
+sudo install -m 600 -o nestor -g nestor config.yaml /etc/nestor/config.yaml   # see Config above
+
+printf 'NESTOR_UID=%s\nNESTOR_GID=%s\n' "$(id -u nestor)" "$(id -g nestor)" > .env
+
+sudo docker compose up -d --build
+wget -qO- http://127.0.0.1:8790/healthz                                       # → ok
 ```
 
 nginx location (inside an existing TLS-terminated `server` block):
